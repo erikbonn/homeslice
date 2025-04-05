@@ -1,0 +1,32 @@
+@keyframes gradientPulse {
+  0% {
+    background-position: 200% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animated-gradient {
+  background: linear-gradient(
+    90deg,
+    #892a05,
+    #aa4008,
+    #f97316,
+    #ffffff,
+    #ffffff,
+    #f8f8f8,
+    #ea580c,
+    #8c2c06
+  );
+  background-size: 200% 200%;
+  animation: gradientPulse 3s linear infinite;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.welcome-text {
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
