@@ -10,26 +10,75 @@ import { type AdapterAccount } from "next-auth/adapters";
  */
 export const createTable = pgTableCreator((name) => `homeslice_${name}`);
 
-export const posts = createTable(
-  "post",
-  (d) => ({
-    id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
-    name: d.varchar({ length: 256 }),
-    createdById: d
-      .varchar({ length: 255 })
-      .notNull()
-      .references(() => users.id),
-    createdAt: d
-      .timestamp({ withTimezone: true })
-      .default(sql`CURRENT_TIMESTAMP`)
-      .notNull(),
-    updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
-  }),
-  (t) => [
-    index("created_by_idx").on(t.createdById),
-    index("name_idx").on(t.name),
-  ],
-);
+// Subscription plans
+export const subscriptionPlans = createTable("subscription_plan", (d) => ({
+  id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+  name: d.varchar({ length: 50 }).notNull(), // e.g., "free", "premium"
+  price: d.numeric({ precision: 10, scale: 2 }),
+  features: d.jsonb(), // Store plan features as JSON
+  createdAt: d
+    .timestamp({ withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+}));
+
+// User subscriptions
+export const userSubscriptions = createTable("user_subscription", (d) => ({
+  id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+  userId: d
+    .varchar({ length: 255 })
+    .notNull()
+    .references(() => users.id),
+  planId: d
+    .integer()
+    .notNull()
+    .references(() => subscriptionPlans.id),
+  status: d.varchar({ length: 20 }).notNull(), // "active", "cancelled", "expired"
+  startDate: d.timestamp({ withTimezone: true }).notNull(),
+  endDate: d.timestamp({ withTimezone: true }),
+  createdAt: d
+    .timestamp({ withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
+}));
+
+// Housing market data
+export const housingData = createTable("housing_data", (d) => ({
+  id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+  location: d.varchar({ length: 255 }).notNull(), // City, region, or specific area
+  date: d.date().notNull(),
+  medianPrice: d.numeric({ precision: 12, scale: 2 }),
+  averagePrice: d.numeric({ precision: 12, scale: 2 }),
+  numberOfSales: d.integer(),
+  daysOnMarket: d.integer(),
+  pricePerSquareFoot: d.numeric({ precision: 10, scale: 2 }),
+  source: d.varchar({ length: 100 }).notNull(), // Data source identifier
+  metadata: d.jsonb(), // Additional data specific to the source
+  createdAt: d
+    .timestamp({ withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
+}));
+
+// User preferences and saved searches
+export const userPreferences = createTable("user_preferences", (d) => ({
+  id: d.integer().primaryKey().generatedByDefaultAsIdentity(),
+  userId: d
+    .varchar({ length: 255 })
+    .notNull()
+    .references(() => users.id),
+  defaultLocation: d.varchar({ length: 255 }),
+  savedLocations: d.jsonb(), // Array of saved locations
+  chartPreferences: d.jsonb(), // User's preferred chart types and settings
+  notificationSettings: d.jsonb(), // Email/notification preferences
+  createdAt: d
+    .timestamp({ withTimezone: true })
+    .default(sql`CURRENT_TIMESTAMP`)
+    .notNull(),
+  updatedAt: d.timestamp({ withTimezone: true }).$onUpdate(() => new Date()),
+}));
 
 export const users = createTable("user", (d) => ({
   id: d
@@ -48,8 +97,10 @@ export const users = createTable("user", (d) => ({
   image: d.varchar({ length: 255 }),
 }));
 
-export const usersRelations = relations(users, ({ many }) => ({
+export const usersRelations = relations(users, ({ many, one }) => ({
   accounts: many(accounts),
+  subscriptions: many(userSubscriptions),
+  preferences: one(userPreferences),
 }));
 
 export const accounts = createTable(
@@ -105,4 +156,29 @@ export const verificationTokens = createTable(
     expires: d.timestamp({ mode: "date", withTimezone: true }).notNull(),
   }),
   (t) => [primaryKey({ columns: [t.identifier, t.token] })],
+);
+
+// Add new relations
+export const userSubscriptionsRelations = relations(
+  userSubscriptions,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [userSubscriptions.userId],
+      references: [users.id],
+    }),
+    plan: one(subscriptionPlans, {
+      fields: [userSubscriptions.planId],
+      references: [subscriptionPlans.id],
+    }),
+  }),
+);
+
+export const userPreferencesRelations = relations(
+  userPreferences,
+  ({ one }) => ({
+    user: one(users, {
+      fields: [userPreferences.userId],
+      references: [users.id],
+    }),
+  }),
 );
