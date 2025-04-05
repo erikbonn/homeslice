@@ -28,16 +28,16 @@ export default function ScrollAnimation() {
           transform: welcomeTransform,
         }}
       >
-        <h1 className="text-5xl font-extrabold tracking-tight sm:text-[5rem]">
-          Welcome to <span className="text-orange-200">Homeslice</span>
+        <h1 className="welcome-text text-5xl font-extrabold tracking-tight sm:text-[5rem]">
+          Welcome to <span className="animated-gradient">Homeslice</span>
         </h1>
         <p className="mt-4 text-center text-xl text-orange-100">
-          Your slice of the real estate market.
+          Your <strong>slice</strong> of the real estate market.
         </p>
       </div>
 
       <div
-        className="fixed top-0 right-0 left-0 flex min-h-screen items-center justify-center px-4"
+        className="fixed top-0 right-0 left-0 flex min-h-screen items-center justify-center px-4 pt-40"
         style={{
           opacity: imageOpacity,
           transform: imageTransform,

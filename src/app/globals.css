@@ -1,0 +1,30 @@
+@import "tailwindcss/preflight";
+@tailwind utilities;
+
+@keyframes gradientPulse {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animated-gradient {
+  background: linear-gradient(
+    90deg,
+    #f97316,
+    #fb923c,
+    #fdba74,
+    #fb923c,
+    #f97316
+  );
+  background-size: 200% 200%;
+  animation: gradientPulse 3s ease infinite;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
