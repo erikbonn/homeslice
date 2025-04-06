@@ -25,7 +25,7 @@ export default function StickyFooter() {
         <p className="text-lg font-semibold">Ready to get started?</p>
         <Link
           href="/signup"
-          className="rounded-full bg-white/10 px-6 py-2 font-semibold transition hover:bg-white/20"
+          className="rounded-full bg-white/20 px-6 py-2 font-semibold transition hover:bg-white/30"
         >
           Join Now
         </Link>

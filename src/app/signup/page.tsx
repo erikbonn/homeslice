@@ -48,7 +48,7 @@ export default function SignupPage() {
           <div className="mt-auto">
             <Link
               href="#"
-              className="block w-full rounded-full bg-orange-600 px-6 py-3 text-center font-semibold text-white transition hover:bg-orange-700"
+              className="block w-full rounded-full bg-white/30 px-6 py-3 text-center font-semibold text-white transition hover:bg-white/50"
             >
               Get Started
             </Link>
@@ -114,7 +114,7 @@ export default function SignupPage() {
           <div className="mt-auto">
             <Link
               href="#"
-              className="block w-full rounded-full bg-orange-600 px-6 py-3 text-center font-semibold text-white transition hover:bg-orange-700"
+              className="block w-full rounded-full bg-white/30 px-6 py-3 text-center font-semibold text-white transition hover:bg-white/50"
             >
               Get Premium
             </Link>
