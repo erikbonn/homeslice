@@ -42,7 +42,7 @@ export default function ScrollAnimation() {
           Welcome to <span className="animated-gradient">Homeslice</span>
         </h1>
         <p className="mt-4 text-center text-xl text-orange-100">
-          Your <strong>slice</strong> of the real estate market.
+          Get to know your <strong>slice</strong> of the real estate market.
         </p>
         <div className="mt-8 flex w-full justify-center">
           <div className="w-full max-w-2xl">
