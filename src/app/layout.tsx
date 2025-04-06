@@ -44,7 +44,7 @@ export default async function RootLayout({
                 height={32}
                 className="h-8 w-8"
               />
-              <span className="animated-gradient">Homeslice</span>
+              <span>Homeslice</span>
             </Link>
             <div className="flex items-center gap-4">
               {session && (
