@@ -29,7 +29,7 @@ export default async function RootLayout({
       <body className="min-h-screen bg-gradient-to-b from-orange-500 to-orange-700 text-white">
         <nav className="fixed top-0 right-0 left-0 z-50 bg-orange-600/80 backdrop-blur-sm">
           <div className="container mx-auto flex h-16 items-center justify-between px-4">
-            <Link href="/" className="text-2xl font-bold">
+            <Link href="/" className="text-3xl font-bold">
               Homeslice
             </Link>
             <div className="flex items-center gap-4">
@@ -38,7 +38,7 @@ export default async function RootLayout({
               )}
               <Link
                 href={session ? "/api/auth/signout" : "/api/auth/signin"}
-                className="rounded-full bg-white/10 px-4 py-2 text-sm font-semibold no-underline transition hover:bg-white/20"
+                className="rounded-full bg-white/20 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/30"
               >
                 {session ? "Sign out" : "Sign in"}
               </Link>
