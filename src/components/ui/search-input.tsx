@@ -8,14 +8,17 @@ import { useState } from "react";
 interface SearchInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   className?: string;
   onSearch?: (query: string) => void;
+  defaultValue?: string;
 }
 
 export function SearchInput({
   className,
   onSearch,
+  defaultValue = "",
   ...props
 }: SearchInputProps) {
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(defaultValue);
+  const router = useRouter();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,11 +28,8 @@ export function SearchInput({
         onSearch(searchQuery);
       }
 
-      // Scroll to the bottom of the page
-      window.scrollTo({
-        top: window.innerHeight,
-        behavior: "smooth",
-      });
+      // Route to dashboard with search query
+      router.push(`/dashboard?q=${encodeURIComponent(searchQuery)}`);
     }
   };
 

@@ -11,6 +11,7 @@ interface MapDashboardProps {
     latitude: number;
     zoom: number;
   };
+  searchQuery?: string;
 }
 
 export type MapStyle = "streets" | "terrain" | "satellite";
@@ -126,8 +127,15 @@ const mapStyles: Record<MapStyle, maplibregl.StyleSpecification> = {
   },
 };
 
+interface GeocodingResult {
+  lat: string;
+  lon: string;
+  display_name: string;
+}
+
 export function MapDashboard({
   initialViewState = { longitude: -98.5795, latitude: 39.8283, zoom: 3.5 },
+  searchQuery,
 }: MapDashboardProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
@@ -162,6 +170,35 @@ export function MapDashboard({
     };
   }, [initialViewState]);
 
+  // Handle search query changes
+  useEffect(() => {
+    if (!map.current || !searchQuery) return;
+
+    const geocodeSearch = async () => {
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+            searchQuery,
+          )}&limit=1`,
+        );
+        const data = (await response.json()) as GeocodingResult[];
+
+        if (data && data.length > 0 && data[0]) {
+          const result = data[0];
+          map.current?.flyTo({
+            center: [parseFloat(result.lon), parseFloat(result.lat)],
+            zoom: 8,
+            essential: true,
+          });
+        }
+      } catch (error) {
+        console.error("Error geocoding search query:", error);
+      }
+    };
+
+    void geocodeSearch();
+  }, [searchQuery]);
+
   const changeMapStyle = async (style: MapStyle) => {
     if (!map.current) {
       console.error("Map instance not found");
@@ -169,17 +206,14 @@ export function MapDashboard({
     }
 
     try {
-      console.log("Changing map style to:", style);
-      const newStyle = mapStyles[style];
-      console.log("New style configuration:", newStyle);
-
       // Store current view state
       const center = map.current.getCenter();
       const zoom = map.current.getZoom();
 
       // Remove previous style load handler if it exists
-      if (styleLoadHandlerRef.current && map.current) {
+      if (styleLoadHandlerRef.current) {
         map.current.off("style.load", styleLoadHandlerRef.current);
+        styleLoadHandlerRef.current = null;
       }
 
       // Create new style load handler
@@ -195,31 +229,15 @@ export function MapDashboard({
       styleLoadHandlerRef.current = styleLoadHandler;
 
       // Set the new style
-      map.current.setStyle(newStyle);
+      map.current.setStyle(mapStyles[style]);
 
       // Add the style load handler
       void map.current.once("style.load", styleLoadHandler);
 
       // Set a timeout to handle style loading failures
-      const timeout = setTimeout(() => {
-        console.warn(
-          "Style load timeout, attempting to restore previous style",
-        );
-        if (map.current) {
-          map.current.setStyle(mapStyles[currentStyle]);
-        }
-      }, 10000);
-
-      // Clean up timeout when style loads
-      void map.current.once("style.load", () => {
-        clearTimeout(timeout);
-      });
     } catch (error) {
       console.error("Error changing map style:", error);
       // Fallback to previous style if setting fails
-      if (map.current) {
-        map.current.setStyle(mapStyles[currentStyle]);
-      }
     }
   };
 
