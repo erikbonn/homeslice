@@ -48,7 +48,15 @@ export default async function RootLayout({
             </Link>
             <div className="flex items-center gap-4">
               {session && (
-                <span className="text-sm">Welcome, {session.user?.name}</span>
+                <>
+                  <Link
+                    href="/dashboard"
+                    className="text-sm font-medium transition-colors hover:text-orange-200"
+                  >
+                    Dashboard
+                  </Link>
+                  <span className="text-sm">Welcome, {session.user?.name}</span>
+                </>
               )}
               <Link
                 href={session ? "/api/auth/signout" : "/api/auth/signin"}
