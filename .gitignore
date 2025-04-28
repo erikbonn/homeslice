@@ -44,3 +44,7 @@ yarn-error.log*
 
 # idea files
 .idea
+
+# cursor
+.cursor/rules/
+.cursor/rules/homeslice-dev-rule.mdc
