@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { MapStyleSelector } from "./map-style-selector";
+import { FilterType, filterNames } from "./filter-types";
+import { Info, Layers } from "lucide-react";
 
 interface MapDashboardProps {
   initialViewState?: {
@@ -12,6 +14,7 @@ interface MapDashboardProps {
     zoom: number;
   };
   searchQuery?: string;
+  activeFilters?: FilterType[];
 }
 
 export type MapStyle = "streets" | "terrain" | "satellite";
@@ -136,12 +139,16 @@ interface GeocodingResult {
 export function MapDashboard({
   initialViewState = { longitude: -98.5795, latitude: 39.8283, zoom: 3.5 },
   searchQuery,
+  activeFilters = [],
 }: MapDashboardProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [currentStyle, setCurrentStyle] = useState<MapStyle>("streets");
   const styleLoadHandlerRef = useRef<(() => void) | null>(null);
+  const [activeLayers, setActiveLayers] = useState<string[]>([]);
+  const [selectedLocation, setSelectedLocation] = useState<string | null>(null);
+  const [showLayerInfo, setShowLayerInfo] = useState(false);
 
   useEffect(() => {
     if (!mapContainer.current) return;
@@ -160,6 +167,10 @@ export function MapDashboard({
     // Handle map load
     map.current.on("load", () => {
       setMapLoaded(true);
+
+      // Initialize dummy data sources for filters
+      // Note: In a real implementation, these would come from your API
+      initializeDataSources();
     });
 
     // Cleanup
@@ -169,6 +180,49 @@ export function MapDashboard({
       }
     };
   }, [initialViewState]);
+
+  // Initialize data sources for the map
+  const initializeDataSources = () => {
+    if (!map.current) return;
+
+    // Initialize sources for each type of filter
+    // This is where you'd add data from your API
+
+    // Example: Adding a source for median home prices (dummy data)
+    map.current.addSource("median-prices", {
+      type: "geojson",
+      data: {
+        type: "FeatureCollection",
+        features: [],
+      },
+    });
+
+    // Example: Adding a layer for median home prices
+    map.current.addLayer({
+      id: FilterType.MEDIAN_PRICE,
+      type: "fill",
+      source: "median-prices",
+      layout: { visibility: "none" },
+      paint: {
+        "fill-color": [
+          "interpolate",
+          ["linear"],
+          ["get", "median_price"],
+          100000,
+          "#ffffcc",
+          500000,
+          "#fd8d3c",
+          1000000,
+          "#800026",
+        ],
+        "fill-opacity": 0.7,
+        "fill-outline-color": "#000",
+      },
+    });
+
+    // Note: In a real implementation, you would add all data sources
+    // and layers for each filter type here, or dynamically when filters are toggled
+  };
 
   // Handle search query changes
   useEffect(() => {
@@ -190,6 +244,11 @@ export function MapDashboard({
             zoom: 8,
             essential: true,
           });
+          setSelectedLocation(result.display_name);
+
+          // This is where you would fetch data for this location
+          // and update the map layers
+          fetchLocationData(result.display_name);
         }
       } catch (error) {
         console.error("Error geocoding search query:", error);
@@ -198,6 +257,57 @@ export function MapDashboard({
 
     void geocodeSearch();
   }, [searchQuery]);
+
+  // Handle filter changes
+  useEffect(() => {
+    if (!map.current || !mapLoaded) return;
+
+    // Update visible layers based on active filters
+    activeFilters.forEach((filter) => {
+      // Check if layer exists for this filter
+      if (map.current?.getLayer(filter)) {
+        map.current.setLayoutProperty(filter, "visibility", "visible");
+
+        if (!activeLayers.includes(filter)) {
+          setActiveLayers((prev) => [...prev, filter]);
+        }
+      } else {
+        // Create layer if it doesn't exist
+        // Note: In a real implementation, you would fetch data from your API
+        console.log(`Layer for ${filter} would be created here`);
+        // createLayerForFilter(filter);
+      }
+    });
+
+    // Hide layers that are no longer active
+    activeLayers.forEach((layer) => {
+      if (
+        !activeFilters.includes(layer as FilterType) &&
+        map.current?.getLayer(layer)
+      ) {
+        map.current.setLayoutProperty(layer, "visibility", "none");
+        setActiveLayers((prev) => prev.filter((l) => l !== layer));
+      }
+    });
+  }, [activeFilters, mapLoaded, activeLayers]);
+
+  // Fetch data for a selected location
+  const fetchLocationData = (locationName: string) => {
+    // This is where you would make API calls to fetch real data
+    console.log(`Fetching data for ${locationName}`);
+
+    // In a real implementation:
+    // 1. Call your backend API to get data for the selected location
+    // 2. Process the returned data
+    // 3. Update the map sources with the new data
+
+    // For demonstration purposes, we're just logging for now
+    activeFilters.forEach((filter) => {
+      console.log(
+        `Would fetch ${filterNames[filter]} data for ${locationName}`,
+      );
+    });
+  };
 
   const changeMapStyle = async (style: MapStyle) => {
     if (!map.current) {
@@ -222,6 +332,16 @@ export function MapDashboard({
           map.current.setCenter(center);
           map.current.setZoom(zoom);
           setCurrentStyle(style);
+
+          // Re-add data sources and layers after style change
+          initializeDataSources();
+
+          // Re-apply active filters
+          activeFilters.forEach((filter) => {
+            if (map.current?.getLayer(filter)) {
+              map.current.setLayoutProperty(filter, "visibility", "visible");
+            }
+          });
         }
       };
 
@@ -233,8 +353,6 @@ export function MapDashboard({
 
       // Add the style load handler
       void map.current.once("style.load", styleLoadHandler);
-
-      // Set a timeout to handle style loading failures
     } catch (error) {
       console.error("Error changing map style:", error);
       // Fallback to previous style if setting fails
@@ -257,6 +375,46 @@ export function MapDashboard({
           onStyleChange={changeMapStyle}
         />
       </div>
+
+      {/* Active Location */}
+      {selectedLocation && (
+        <div className="absolute top-4 right-16 left-[120px] z-10 truncate overflow-hidden rounded-md bg-gray-800/80 px-3 py-1.5 text-sm text-white">
+          {selectedLocation}
+        </div>
+      )}
+
+      {/* Active Layers Indicator */}
+      {activeLayers.length > 0 && (
+        <div className="absolute bottom-4 left-4 z-10">
+          <button
+            onClick={() => setShowLayerInfo(!showLayerInfo)}
+            className="flex items-center gap-2 rounded-md bg-gray-800/80 px-3 py-2 text-sm text-white hover:bg-gray-700/80"
+          >
+            <Layers className="h-4 w-4" />
+            <span>{activeLayers.length} active layers</span>
+          </button>
+
+          {showLayerInfo && (
+            <div className="mt-2 w-60 rounded-md bg-gray-800/90 p-3 text-xs text-white shadow-lg">
+              <div className="mb-2 flex items-center gap-1.5">
+                <Info className="h-3.5 w-3.5 text-orange-400" />
+                <span className="font-medium">Currently Displayed:</span>
+              </div>
+              <ul className="space-y-1">
+                {activeLayers.map((layer) => (
+                  <li key={layer} className="flex items-center gap-1.5">
+                    <div className="h-2 w-2 rounded-full bg-orange-500"></div>
+                    <span>{filterNames[layer as FilterType]}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-3 text-[10px] text-gray-300">
+                Data is updated weekly from MLS sources
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
