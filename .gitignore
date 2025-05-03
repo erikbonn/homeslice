@@ -48,3 +48,10 @@ yarn-error.log*
 # cursor
 .cursor/rules/
 .cursor/rules/homeslice-dev-rule.mdc
+
+# Large GeoJSON and shapefiles
+public/geojson/*.geojson
+public/shapefiles/*.shp
+public/shapefiles/*.shx
+public/shapefiles/*.dbf
+public/shapefiles/*.prj
