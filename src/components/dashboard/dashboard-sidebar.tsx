@@ -12,15 +12,15 @@ import { FilterType, filterCategories, filterNames } from "./filter-types";
 interface DashboardSidebarProps {
   isOpen: boolean;
   toggleSidebar: () => void;
-  activeFilters: FilterType[];
-  onFilterToggle: (filter: FilterType) => void;
+  activeFilter: FilterType | null;
+  onFilterSelect: (filter: FilterType) => void;
 }
 
 export function DashboardSidebar({
   isOpen,
   toggleSidebar,
-  activeFilters,
-  onFilterToggle,
+  activeFilter,
+  onFilterSelect,
 }: DashboardSidebarProps) {
   const [expandedCategories, setExpandedCategories] = useState<string[]>(
     Object.keys(filterCategories).slice(0, 2), // Default: first two categories expanded
@@ -36,14 +36,14 @@ export function DashboardSidebar({
 
   return (
     <div
-      className={`fixed top-16 bottom-0 left-0 z-40 bg-gray-800 shadow-xl transition-all duration-300 ${
+      className={`fixed bottom-0 left-0 top-16 z-40 bg-gray-800 shadow-xl transition-all duration-300 ${
         isOpen ? "w-[300px]" : "w-[50px]"
       }`}
     >
       {/* Toggle button */}
       <button
         onClick={toggleSidebar}
-        className="absolute top-6 -right-3 flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-white shadow-md hover:bg-orange-600"
+        className="absolute -right-3 top-6 flex h-6 w-6 items-center justify-center rounded-full bg-orange-500 text-white shadow-md hover:bg-orange-600"
         aria-label={isOpen ? "Close sidebar" : "Open sidebar"}
       >
         {isOpen ? (
@@ -57,12 +57,12 @@ export function DashboardSidebar({
       {isOpen && (
         <div className="h-full overflow-auto p-4 text-white">
           <h2 className="mb-6 text-xl font-bold text-orange-400">
-            Market Filters
+            Market Metrics
           </h2>
 
           {/* Premium feature notice */}
           <div className="mb-6 rounded bg-gradient-to-r from-orange-600 to-orange-800 p-3 text-sm">
-            <p className="font-medium">Some filters require premium access</p>
+            <p className="font-medium">Some metrics require premium access</p>
             <p className="mt-1 text-xs opacity-80">
               Upgrade to view historical data and advanced metrics
             </p>
@@ -89,11 +89,15 @@ export function DashboardSidebar({
                     {filters.map((filter) => (
                       <div key={filter} className="py-1">
                         <label className="flex cursor-pointer items-center text-sm">
-                          <input
-                            type="checkbox"
-                            checked={activeFilters.includes(filter)}
-                            onChange={() => onFilterToggle(filter)}
-                            className="mr-2 h-4 w-4 rounded border-gray-600 bg-gray-700 text-orange-500 focus:ring-orange-500"
+                          <button
+                            type="button"
+                            onClick={() => onFilterSelect(filter)}
+                            className={`mr-2 h-4 w-4 rounded-full border ${
+                              activeFilter === filter
+                                ? "border-orange-500 bg-orange-500"
+                                : "border-gray-600 bg-gray-700"
+                            }`}
+                            aria-label={`Select ${filterNames[filter]}`}
                           />
                           <span className="flex-1 text-gray-200">
                             {filterNames[filter]}
@@ -147,7 +151,6 @@ export function DashboardSidebar({
               Last updated: {new Date().toLocaleDateString()}
             </p>
             <p className="mt-4 text-[10px]">
-              {/* This will be where we later put data source disclaimers */}
               Data is provided for informational purposes only
             </p>
           </div>

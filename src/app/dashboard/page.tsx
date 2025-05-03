@@ -11,7 +11,7 @@ export default function DashboardPage() {
   const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState(searchParams.get("q") ?? "");
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [activeFilters, setActiveFilters] = useState<FilterType[]>([]);
+  const [activeFilter, setActiveFilter] = useState<FilterType | null>(null);
 
   const handleSearch = (query: string) => {
     setSearchQuery(query);
@@ -21,38 +21,36 @@ export default function DashboardPage() {
     setSidebarOpen(!sidebarOpen);
   };
 
-  const handleFilterToggle = (filter: FilterType) => {
-    if (activeFilters.includes(filter)) {
-      setActiveFilters(activeFilters.filter((f) => f !== filter));
-    } else {
-      setActiveFilters([...activeFilters, filter]);
-    }
+  const handleFilterSelect = (filter: FilterType) => {
+    setActiveFilter(filter === activeFilter ? null : filter);
   };
 
   return (
-    <div className="min-h-screen bg-gray-900">
-      <div className="flex h-[calc(100vh-64px)]">
+    <div className="h-full w-full">
+      <div className="flex h-full">
         <DashboardSidebar
           isOpen={sidebarOpen}
           toggleSidebar={toggleSidebar}
-          activeFilters={activeFilters}
-          onFilterToggle={handleFilterToggle}
+          activeFilter={activeFilter}
+          onFilterSelect={handleFilterSelect}
         />
 
         <div
           className={`flex-1 transition-all duration-300 ${sidebarOpen ? "ml-[300px]" : "ml-[50px]"}`}
         >
-          <div className="p-6">
-            <h1 className="mb-6 text-3xl font-bold text-white">
+          <div className="flex h-full flex-col p-4">
+            <h1 className="mb-4 text-3xl font-bold text-white">
               Market Analytics Dashboard
             </h1>
-            <div className="mb-6">
+            <div className="mb-4">
               <SearchInput defaultValue={searchQuery} onSearch={handleSearch} />
             </div>
-            <MapDashboard
-              searchQuery={searchQuery}
-              activeFilters={activeFilters}
-            />
+            <div className="flex-1 overflow-hidden">
+              <MapDashboard
+                searchQuery={searchQuery}
+                activeFilters={activeFilter ? [activeFilter] : []}
+              />
+            </div>
           </div>
         </div>
       </div>

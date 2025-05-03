@@ -170,7 +170,7 @@ export default function ScrollAnimation() {
   return (
     <div className="relative h-[300vh]">
       <div
-        className="fixed top-0 right-0 left-0 flex min-h-screen flex-col items-center justify-center px-4"
+        className="fixed left-0 right-0 top-0 flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-gray-900 to-orange-900 px-4"
         style={{
           opacity: welcomeOpacity,
           transform: welcomeTransform,
@@ -178,11 +178,12 @@ export default function ScrollAnimation() {
           pointerEvents: isScrolling ? "none" : "auto",
         }}
       >
-        <h1 className="welcome-text text-5xl font-extrabold tracking-tight sm:text-[5rem]">
+        <h1 className="welcome-text text-5xl font-extrabold tracking-tight text-white sm:text-[5rem]">
           Welcome to <span className="animated-gradient">Homeslice</span>
         </h1>
         <p className="mt-4 text-center text-xl text-orange-100">
-          Get to know your <strong>slice</strong> of the real estate market.
+          Get to know your <strong className="text-white">slice</strong> of the
+          real estate market.
         </p>
         <div className="mt-8 flex w-full justify-center">
           <div className="w-full max-w-2xl">
@@ -193,7 +194,7 @@ export default function ScrollAnimation() {
 
       <div
         id="market-analytics"
-        className="fixed top-0 right-0 left-0 flex min-h-screen items-center justify-center px-4 pt-40"
+        className="fixed left-0 right-0 top-0 flex min-h-screen items-center justify-center bg-gradient-to-b from-orange-900 to-gray-900 px-4 pt-40"
         style={{
           opacity: imageOpacity,
           transform: imageTransform,

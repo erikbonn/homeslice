@@ -5,301 +5,289 @@ import {
   mockRegions,
 } from "../mock/marketDataGenerator";
 import { FilterType } from "@/components/dashboard/filter-types";
+import { getBoundaryData } from "@/lib/utils/shapefileUtils";
+import type { GeoJSON } from "geojson";
+import { readFileSync } from "fs";
+import { join } from "path";
 
-// In-memory cache for market data
-let marketDataCache: MarketDataPoint[] | null = null;
-let dateCache: string[] | null = null;
+// In-memory cache for market data with TTL
+const marketDataCache = new Map<
+  string,
+  { data: MarketDataPoint[]; timestamp: number }
+>();
+const dateCache = new Map<string, { dates: string[]; timestamp: number }>();
+const geoJsonCache = new Map<
+  string,
+  { data: GeoJSON.FeatureCollection; timestamp: number }
+>();
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+// Path to pre-generated GeoJSON files
+const GEOJSON_DIR = join(process.cwd(), "public", "geojson");
+
+// Add data file paths
+const DATA_DIR = join(process.cwd(), "public", "data");
+const METRICS_FILE = join(DATA_DIR, "metrics.json");
 
 // Color scales for different metrics
-export const metricColorScales: Record<
-  FilterType,
-  { colors: string[]; steps: number[] }
-> = {
-  // Price metrics (green to red)
-  [FilterType.MEDIAN_PRICE]: {
-    colors: ["#e5f5e0", "#a1d99b", "#41ab5d", "#006d2c"],
-    steps: [200000, 500000, 800000, 1200000],
-  },
-  [FilterType.PRICE_CHANGE]: {
-    colors: [
-      "#d73027",
-      "#f46d43",
-      "#fdae61",
-      "#fee08b",
-      "#d9ef8b",
-      "#a6d96a",
-      "#66bd63",
-    ],
-    steps: [-10, -5, 0, 5, 10, 15],
-  },
-  [FilterType.PRICE_PER_SQFT]: {
-    colors: ["#e5f5e0", "#a1d99b", "#41ab5d", "#006d2c"],
-    steps: [200, 400, 600, 800],
-  },
-  [FilterType.PRICE_CUTS]: {
-    colors: ["#d9ef8b", "#a6d96a", "#66bd63", "#3288bd", "#5e4fa2"],
-    steps: [10, 20, 30, 40],
-  },
-
-  // Time-based metrics (blue scale)
-  [FilterType.DAYS_ON_MARKET]: {
-    colors: ["#eff3ff", "#bdd7e7", "#6baed6", "#3182bd", "#08519c"],
-    steps: [20, 40, 60, 80],
-  },
-
-  // Inventory metrics (orange to purple)
-  [FilterType.INVENTORY]: {
-    colors: ["#feedde", "#fdbe85", "#fd8d3c", "#e6550d", "#a63603"],
-    steps: [100, 500, 1000, 2000],
-  },
-  [FilterType.MONTHS_SUPPLY]: {
-    colors: ["#feedde", "#fdbe85", "#fd8d3c", "#e6550d", "#a63603"],
-    steps: [2, 4, 6, 8],
-  },
-
-  // Transaction metrics (purple scale)
-  [FilterType.TOTAL_SALES]: {
-    colors: ["#f2f0f7", "#dadaeb", "#bcbddc", "#9e9ac8", "#756bb1", "#54278f"],
-    steps: [100, 500, 1000, 2000, 4000],
-  },
-  [FilterType.NEW_LISTINGS]: {
-    colors: ["#f2f0f7", "#dadaeb", "#bcbddc", "#9e9ac8", "#756bb1", "#54278f"],
-    steps: [50, 200, 500, 1000, 2000],
-  },
-  [FilterType.PENDING_SALES]: {
-    colors: ["#f2f0f7", "#dadaeb", "#bcbddc", "#9e9ac8", "#756bb1", "#54278f"],
-    steps: [50, 200, 500, 1000, 2000],
-  },
-  [FilterType.CLOSED_SALES]: {
-    colors: ["#f2f0f7", "#dadaeb", "#bcbddc", "#9e9ac8", "#756bb1", "#54278f"],
-    steps: [50, 200, 500, 1000, 2000],
-  },
-
-  // List vs Sold (diverging)
-  [FilterType.LIST_VS_SOLD]: {
-    colors: [
-      "#d73027",
-      "#f46d43",
-      "#fdae61",
-      "#fee08b",
-      "#d9ef8b",
-      "#a6d96a",
-      "#66bd63",
-    ],
-    steps: [92, 96, 98, 100, 102, 104],
-  },
-
-  // Affordability metrics (blue-purple)
-  [FilterType.AFFORDABILITY_INDEX]: {
-    colors: ["#feebe2", "#fbb4b9", "#f768a1", "#c51b8a", "#7a0177"],
-    steps: [80, 100, 120, 140],
-  },
-  [FilterType.MORTGAGE_RATES]: {
-    colors: ["#feebe2", "#fbb4b9", "#f768a1", "#c51b8a", "#7a0177"],
-    steps: [3, 4, 5, 6, 7],
-  },
-  [FilterType.INCOME_TO_PRICE]: {
-    colors: ["#feebe2", "#fbb4b9", "#f768a1", "#c51b8a", "#7a0177"],
-    steps: [25, 35, 45, 55],
-  },
-
-  // Forecasting metrics (yellow to red)
-  [FilterType.MARKET_HEAT]: {
-    colors: [
-      "#ffffcc",
-      "#ffeda0",
-      "#fed976",
-      "#feb24c",
-      "#fd8d3c",
-      "#fc4e2a",
-      "#e31a1c",
-      "#b10026",
-    ],
-    steps: [20, 30, 40, 50, 60, 70, 80],
-  },
-  [FilterType.APPRECIATION_FORECAST]: {
-    colors: [
-      "#d73027",
-      "#f46d43",
-      "#fdae61",
-      "#fee08b",
-      "#d9ef8b",
-      "#a6d96a",
-      "#66bd63",
-    ],
-    steps: [-5, -2, 0, 2, 5, 8],
-  },
-
-  // Property type metrics (blue-green)
-  [FilterType.SINGLE_FAMILY]: {
-    colors: ["#edf8fb", "#b2e2e2", "#66c2a4", "#2ca25f", "#006d2c"],
-    steps: [50, 200, 500, 1000],
-  },
-  [FilterType.CONDO]: {
-    colors: ["#edf8fb", "#b2e2e2", "#66c2a4", "#2ca25f", "#006d2c"],
-    steps: [20, 100, 300, 700],
-  },
-  [FilterType.TOWNHOUSE]: {
-    colors: ["#edf8fb", "#b2e2e2", "#66c2a4", "#2ca25f", "#006d2c"],
-    steps: [10, 50, 200, 500],
-  },
-  [FilterType.MULTI_FAMILY]: {
-    colors: ["#edf8fb", "#b2e2e2", "#66c2a4", "#2ca25f", "#006d2c"],
-    steps: [5, 25, 100, 300],
-  },
-
-  // Listing status metrics (blue-purple)
-  [FilterType.FOR_SALE]: {
-    colors: [
-      "#f7fcfd",
-      "#e0ecf4",
-      "#bfd3e6",
-      "#9ebcda",
-      "#8c96c6",
-      "#8c6bb1",
-      "#88419d",
-      "#6e016b",
-    ],
-    steps: [50, 200, 500, 1000, 2000, 3000, 4000],
-  },
-  [FilterType.SOLD]: {
-    colors: [
-      "#f7fcfd",
-      "#e0ecf4",
-      "#bfd3e6",
-      "#9ebcda",
-      "#8c96c6",
-      "#8c6bb1",
-      "#88419d",
-      "#6e016b",
-    ],
-    steps: [50, 200, 500, 1000, 2000, 3000, 4000],
-  },
-  [FilterType.FORECLOSURE]: {
-    colors: [
-      "#f7fcfd",
-      "#e0ecf4",
-      "#bfd3e6",
-      "#9ebcda",
-      "#8c96c6",
-      "#8c6bb1",
-      "#88419d",
-    ],
-    steps: [10, 50, 100, 200, 300, 400],
-  },
-  [FilterType.NEW_CONSTRUCTION]: {
-    colors: [
-      "#f7fcfd",
-      "#e0ecf4",
-      "#bfd3e6",
-      "#9ebcda",
-      "#8c96c6",
-      "#8c6bb1",
-      "#88419d",
-    ],
-    steps: [20, 100, 200, 400, 600, 800],
-  },
+const colorScales = {
+  medianPrice: [
+    "#FFEDA0",
+    "#FED976",
+    "#FEB24C",
+    "#FD8D3C",
+    "#FC4E2A",
+    "#E31A1C",
+    "#BD0026",
+    "#800026",
+  ],
+  pricePerSqft: [
+    "#F7FBFF",
+    "#DEEBF7",
+    "#C6DBEF",
+    "#9ECAE1",
+    "#6BAED6",
+    "#4292C6",
+    "#2171B5",
+    "#08519C",
+  ],
+  daysOnMarket: [
+    "#F7F4F9",
+    "#E7E1EF",
+    "#D4B9DA",
+    "#C994C7",
+    "#DF65B0",
+    "#E7298A",
+    "#CE1256",
+    "#91003F",
+  ],
+  inventory: [
+    "#F7FCF5",
+    "#E5F5E0",
+    "#C7E9C0",
+    "#A1D99B",
+    "#74C476",
+    "#41AB5D",
+    "#238B45",
+    "#005A32",
+  ],
 };
+
+interface FeatureProperties {
+  id: string;
+  name: string;
+  type: string;
+  value: number;
+  filter: string;
+  date: string;
+}
+
+interface RawFeatureProperties {
+  id?: string;
+  name?: string;
+  [key: string]: unknown;
+}
+
+// Add interface for metric data
+type MetricData = Record<string, Record<string, Record<FilterType, number>>>;
+
+let metricsData: MetricData | null = null;
+
+// Type guard to validate MetricData shape
+function isMetricData(data: unknown): data is MetricData {
+  if (!data || typeof data !== "object") return false;
+
+  const candidate = data as Record<string, unknown>;
+  if (!("metrics" in candidate)) return false;
+
+  const metrics = candidate.metrics;
+  if (!Array.isArray(metrics)) return false;
+
+  // Add additional type checking for metrics array elements if needed
+  return true;
+}
+
+// Load metrics data from API
+async function loadMetricsData(): Promise<MetricData> {
+  if (metricsData) return metricsData;
+
+  try {
+    const response = await fetch("/api/metrics");
+    if (!response.ok) {
+      throw new Error(`Failed to fetch metrics data: ${response.statusText}`);
+    }
+    const data: unknown = await response.json();
+
+    if (!isMetricData(data)) {
+      throw new Error("Invalid metrics data format received from API");
+    }
+
+    metricsData = data;
+    return metricsData;
+  } catch (error) {
+    console.error("Error loading metrics data:", error);
+    return {} as MetricData;
+  }
+}
 
 // Get the color scale steps for a specific metric as a MapLibre expression
 export function getColorScaleExpression(
-  metricType: FilterType,
-  geoScope?: string,
-): Array<string | number | Array<string | string[]>> {
-  const { colors, steps } = metricColorScales[metricType];
+  filter: string,
+  geoScope = "country",
+): [number, string][] {
+  const scale =
+    colorScales[filter as keyof typeof colorScales] || colorScales.medianPrice;
 
-  // Adjust steps based on geographic scope if needed
-  let adjustedSteps = [...steps];
+  // Adjust the number of stops based on geographic scope
+  const numStops =
+    geoScope === "zipcode"
+      ? 8
+      : geoScope === "city"
+        ? 6
+        : geoScope === "county"
+          ? 4
+          : 3;
 
-  // For smaller geographic areas, we might want to adjust the scale
-  // This is optional and depends on your data distribution
-  if (geoScope === "city" || geoScope === "zipcode") {
-    // For city or zip level, adjust thresholds to be more granular
-    // This is just an example - adjust based on your actual data
-    adjustedSteps = steps.map((step) =>
-      metricType === FilterType.MEDIAN_PRICE ? step * 0.8 : step,
-    );
-  }
+  // Create color stops with evenly distributed values
+  const colors = scale.slice(0, numStops);
+  const step = 100 / (colors.length - 1);
 
-  // Create a MapLibre interpolate expression
-  // First value is the property to interpolate by
-  const expression: Array<string | number | Array<string | string[]>> = [
-    "interpolate",
-    ["linear"],
-    ["get", "value"],
-  ];
-
-  // Add steps and colors
-  adjustedSteps.forEach((step, index) => {
-    expression.push(step);
-    expression.push(colors[index]);
-  });
-
-  // Add the last color for values beyond the last step
-  if (adjustedSteps.length < colors.length) {
-    expression.push(adjustedSteps[adjustedSteps.length - 1] * 1.5); // A value beyond the last step
-    expression.push(colors[colors.length - 1]);
-  }
-
-  return expression;
+  return colors.map((color, index) => [index * step, color]);
 }
 
 // Get or generate market data
 export async function getMarketData(): Promise<MarketDataPoint[]> {
-  // Use cached data if available
-  if (marketDataCache) {
-    return marketDataCache;
+  const cacheKey = "market-data";
+  const cachedData = marketDataCache.get(cacheKey);
+
+  if (cachedData && Date.now() - cachedData.timestamp < CACHE_TTL) {
+    return cachedData.data;
   }
 
-  // Generate new market data (simulates API call)
-  // In a real app, this would be an API call to your backend
-  return new Promise((resolve) => {
-    // Simulate network delay
-    setTimeout(() => {
-      const data = generateMarketDataset(24); // 2 years of monthly data
-      marketDataCache = data;
-      resolve(data);
-    }, 500);
+  // Generate new data
+  const data = generateMarketDataset(12); // Reduced from 24 to 12 months
+  marketDataCache.set(cacheKey, {
+    data,
+    timestamp: Date.now(),
   });
+  return data;
 }
 
-// Get GeoJSON for a specific filter and date
+// Add preloading state tracking
+const preloadState = new Map<
+  string,
+  {
+    status: "pending" | "loading" | "loaded" | "error";
+    promise?: Promise<void>;
+  }
+>();
+
+// Add preloading function
+export async function preloadData(
+  filters: FilterType[],
+  dates: string[],
+  geoScope = "country",
+  geoId?: string,
+): Promise<void> {
+  const preloadKey = `${filters.join("-")}-${dates.join("-")}-${geoScope}-${geoId ?? ""}`;
+
+  // Check if already preloading or loaded
+  const existingState = preloadState.get(preloadKey);
+  if (
+    existingState?.status === "loading" ||
+    existingState?.status === "loaded"
+  ) {
+    return existingState.promise;
+  }
+
+  // Create new preload state
+  const preloadPromise = (async () => {
+    try {
+      preloadState.set(preloadKey, { status: "loading" });
+
+      // Load metrics data first
+      await loadMetricsData();
+
+      // Preload GeoJSON data for each filter and date combination
+      const preloadPromises = filters.flatMap((filter) =>
+        dates.map((date) => getFilterGeoJSON(filter, date, geoScope, geoId)),
+      );
+
+      await Promise.all(preloadPromises);
+      preloadState.set(preloadKey, { status: "loaded" });
+    } catch (error) {
+      console.error("Error preloading data:", error);
+      preloadState.set(preloadKey, { status: "error" });
+      throw error;
+    }
+  })();
+
+  preloadState.set(preloadKey, { status: "loading", promise: preloadPromise });
+  return preloadPromise;
+}
+
+// Add function to check preload status
+export function getPreloadStatus(
+  filters: FilterType[],
+  dates: string[],
+  geoScope = "country",
+  geoId?: string,
+): "pending" | "loading" | "loaded" | "error" {
+  const preloadKey = `${filters.join("-")}-${dates.join("-")}-${geoScope}-${geoId ?? ""}`;
+  return preloadState.get(preloadKey)?.status ?? "pending";
+}
+
+// Modify getFilterGeoJSON to check preload status
 export async function getFilterGeoJSON(
-  filter: FilterType,
+  filter: string,
   date: string,
-  geoScope: string = "country",
+  geoScope = "country",
   geoId?: string,
 ): Promise<GeoJSON.FeatureCollection> {
+  const cacheKey = `${filter}-${date}-${geoScope}-${geoId ?? ""}`;
+  const cachedData = geoJsonCache.get(cacheKey);
+
+  if (cachedData && Date.now() - cachedData.timestamp < CACHE_TTL) {
+    return cachedData.data;
+  }
+
+  // Check if data is being preloaded
+  const preloadKey = `${filter}-${date}-${geoScope}-${geoId ?? ""}`;
+  const preloadStatus = preloadState.get(preloadKey);
+
+  if (preloadStatus?.status === "loading" && preloadStatus.promise) {
+    await preloadStatus.promise;
+    const cachedData = geoJsonCache.get(cacheKey);
+    if (cachedData) {
+      return cachedData.data;
+    }
+  }
+
   try {
-    // Fetch data from API endpoint with geographic scope parameters
+    // Use the API endpoint instead of reading files directly
     const params = new URLSearchParams({
-      filter: filter,
-      date: date,
+      filter,
+      date,
+      geoScope,
+      ...(geoId && { geoId }),
     });
 
-    // Add optional geographic scope parameters
-    if (geoScope && geoScope !== "country") {
-      params.append("geoScope", geoScope);
-    }
-
-    if (geoId) {
-      params.append("geoId", geoId);
-    }
-
-    const response = await fetch(
-      `/api/market-data?${params.toString()}`,
-      { next: { revalidate: 3600 } }, // Cache for 1 hour
-    );
-
+    const response = await fetch(`/api/market-data?${params.toString()}`);
     if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
+      throw new Error(`Failed to fetch market data: ${response.statusText}`);
     }
 
-    const data = await response.json();
-    return data as GeoJSON.FeatureCollection;
+    const geoJsonData = (await response.json()) as GeoJSON.FeatureCollection;
+
+    // Cache the result
+    geoJsonCache.set(cacheKey, {
+      data: geoJsonData,
+      timestamp: Date.now(),
+    });
+
+    return geoJsonData;
   } catch (error) {
-    console.error(`Error fetching GeoJSON for ${filter}:`, error);
-    // Return empty feature collection as fallback
+    console.error(`Error loading GeoJSON for ${filter}:`, error);
     return {
       type: "FeatureCollection",
       features: [],
@@ -307,45 +295,61 @@ export async function getFilterGeoJSON(
   }
 }
 
-// Get the latest available date in the data
+// Get latest date
 export async function getLatestDate(): Promise<string> {
-  if (dateCache && dateCache.length > 0) {
-    return dateCache[dateCache.length - 1];
+  const cacheKey = "latest-date";
+  const cachedData = dateCache.get(cacheKey);
+
+  if (cachedData && Date.now() - cachedData.timestamp < CACHE_TTL) {
+    const latestDate = cachedData.dates[0];
+    if (!latestDate) {
+      throw new Error("No dates available in cache");
+    }
+    return latestDate;
   }
 
   const dates = await getAvailableDates();
-  return dates[dates.length - 1];
+  const latestDate = dates[0];
+  if (!latestDate) {
+    throw new Error("No dates available");
+  }
+
+  dateCache.set(cacheKey, {
+    dates,
+    timestamp: Date.now(),
+  });
+
+  return latestDate;
 }
 
 // Get all available dates
 export async function getAvailableDates(): Promise<string[]> {
-  if (dateCache) {
-    return dateCache;
+  const cacheKey = "available-dates";
+  const cachedData = dateCache.get(cacheKey);
+
+  if (cachedData && Date.now() - cachedData.timestamp < CACHE_TTL) {
+    return cachedData.dates;
   }
 
-  try {
-    // This would be a real API call in production
-    // For now, we'll generate dates locally
-    const now = new Date();
-    const dates: string[] = [];
-
-    // Generate 24 months of dates (first of each month)
-    for (let i = 0; i < 24; i++) {
-      const date = new Date(now);
-      date.setMonth(now.getMonth() - i);
-      date.setDate(1);
-      dates.unshift(date.toISOString().split("T")[0]);
-    }
-
-    // Sort chronologically
-    const sortedDates = dates.sort();
-    dateCache = sortedDates;
-
-    return sortedDates;
-  } catch (error) {
-    console.error("Error fetching available dates:", error);
+  const marketData = await getMarketData();
+  if (!marketData.length) {
     return [];
   }
+
+  const dates = Array.from(
+    new Set(marketData.map((point) => point.timestamp)),
+  ).sort((a, b) => new Date(b).getTime() - new Date(a).getTime());
+
+  if (!dates.length) {
+    return [];
+  }
+
+  dateCache.set(cacheKey, {
+    dates,
+    timestamp: Date.now(),
+  });
+
+  return dates;
 }
 
 // Get region by ID
@@ -360,18 +364,8 @@ export async function getMetricValue(
   date: string,
 ): Promise<number | null> {
   try {
-    // Fetch data from API endpoint
-    const response = await fetch(
-      `/api/market-data?filter=${metric}&date=${date}&regionId=${regionId}`,
-      { next: { revalidate: 3600 } }, // Cache for 1 hour
-    );
-
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.metrics[metric] ?? null;
+    const metrics = await loadMetricsData();
+    return metrics[regionId]?.[date]?.[metric] ?? null;
   } catch (error) {
     console.error(`Error fetching metric value:`, error);
     return null;
@@ -379,65 +373,29 @@ export async function getMetricValue(
 }
 
 // Generate a legend for a specific filter
-export function generateLegend(filter: FilterType) {
-  const { colors, steps } = metricColorScales[filter];
-
-  if (!steps || steps.length === 0) {
-    return [];
-  }
-
-  // Create legend items
-  const legendItems = [];
-
-  // First legend item for values below first step
-  legendItems.push({
-    color: colors[0],
-    label: `< ${formatMetricValue(steps[0], filter)}`,
-  });
-
-  // Middle legend items
-  for (let i = 0; i < steps.length - 1; i++) {
-    legendItems.push({
-      color: colors[i + 1],
-      label: `${formatMetricValue(steps[i], filter)} - ${formatMetricValue(steps[i + 1], filter)}`,
-    });
-  }
-
-  // Last legend item for values above last step
-  legendItems.push({
-    color: colors[colors.length - 1],
-    label: `> ${formatMetricValue(steps[steps.length - 1], filter)}`,
-  });
-
-  return legendItems;
+export function generateLegend(
+  filter: string,
+): Array<{ color: string; label: string }> {
+  const scale =
+    colorScales[filter as keyof typeof colorScales] || colorScales.medianPrice;
+  return scale.map((color, i) => ({
+    color,
+    label: `${i * 100}-${(i + 1) * 100}`,
+  }));
 }
 
 // Format metric values based on their type
-export function formatMetricValue(value: number, metric: FilterType): string {
-  if (value === null || value === undefined) return "N/A";
-
-  switch (metric) {
-    case FilterType.MEDIAN_PRICE:
+export function formatMetricValue(value: number, filter: string): string {
+  switch (filter) {
+    case "medianPrice":
       return `$${value.toLocaleString()}`;
-
-    case FilterType.PRICE_CHANGE:
-    case FilterType.LIST_VS_SOLD:
-    case FilterType.APPRECIATION_FORECAST:
-      return `${value}%`;
-
-    case FilterType.PRICE_PER_SQFT:
-      return `$${value}/sqft`;
-
-    case FilterType.DAYS_ON_MARKET:
-      return `${value} days`;
-
-    case FilterType.MORTGAGE_RATES:
-      return `${value}%`;
-
-    case FilterType.MONTHS_SUPPLY:
-      return `${value} months`;
-
-    default:
+    case "pricePerSqft":
+      return `$${value.toFixed(2)}/sqft`;
+    case "daysOnMarket":
+      return `${Math.round(value)} days`;
+    case "inventory":
       return value.toLocaleString();
+    default:
+      return value.toString();
   }
 }

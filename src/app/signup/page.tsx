@@ -1,6 +1,23 @@
+"use client";
+
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 
 export default function SignupPage() {
+  const router = useRouter();
+
+  const handlePlanSelect = async (plan: "free" | "premium") => {
+    try {
+      // Redirect to sign in with the selected plan
+      await signIn("google", {
+        callbackUrl: `/dashboard?plan=${plan}`,
+      });
+    } catch (error) {
+      console.error("Error during sign in:", error);
+    }
+  };
+
   return (
     <main className="container mx-auto flex min-h-[calc(100vh-4rem)] flex-col items-center justify-center px-4 py-16">
       <h1 className="mb-16 text-5xl font-bold">Choose Your Plan</h1>
@@ -46,12 +63,12 @@ export default function SignupPage() {
             </li>
           </ul>
           <div className="mt-auto">
-            <Link
-              href="#"
+            <button
+              onClick={() => handlePlanSelect("free")}
               className="block w-full rounded-full bg-white/30 px-6 py-3 text-center font-semibold text-white transition hover:bg-white/50"
             >
               Get Started
-            </Link>
+            </button>
           </div>
         </div>
 
@@ -112,12 +129,12 @@ export default function SignupPage() {
             </li>
           </ul>
           <div className="mt-auto">
-            <Link
-              href="#"
+            <button
+              onClick={() => handlePlanSelect("premium")}
               className="block w-full rounded-full bg-white/30 px-6 py-3 text-center font-semibold text-white transition hover:bg-white/50"
             >
               Get Premium
-            </Link>
+            </button>
           </div>
         </div>
       </div>

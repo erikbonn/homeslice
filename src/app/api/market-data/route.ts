@@ -20,6 +20,7 @@ let datasetCache: MarketDataPoint[] | null = null;
  * - regionId: (Optional) Specific region to fetch data for
  */
 export async function GET(request: NextRequest) {
+  console.log("[market-data] API request received");
   try {
     const searchParams = request.nextUrl.searchParams;
 
@@ -30,8 +31,17 @@ export async function GET(request: NextRequest) {
     const geoId = searchParams.get("geoId");
     const regionId = searchParams.get("regionId");
 
+    console.log("[market-data] Request parameters:", {
+      filter,
+      date,
+      geoScope,
+      geoId,
+      regionId,
+    });
+
     // Validate required parameters
     if (!filter) {
+      console.error("[market-data] Missing required parameter: filter");
       return NextResponse.json(
         { error: "Missing required parameter: filter" },
         { status: 400 },
@@ -39,6 +49,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (!date) {
+      console.error("[market-data] Missing required parameter: date");
       return NextResponse.json(
         { error: "Missing required parameter: date" },
         { status: 400 },
@@ -47,6 +58,7 @@ export async function GET(request: NextRequest) {
 
     // Validate filter is a valid FilterType
     if (!Object.values(FilterType).includes(filter as FilterType)) {
+      console.error("[market-data] Invalid filter type:", filter);
       return NextResponse.json(
         { error: "Invalid filter type" },
         { status: 400 },
@@ -55,45 +67,52 @@ export async function GET(request: NextRequest) {
 
     // Initialize dataset cache if needed
     if (!datasetCache) {
+      console.log("[market-data] Initializing dataset cache");
       datasetCache = generateMarketDataset(24); // 2 years of monthly data
     }
 
-    // Handle specific endpoints
+    if (!datasetCache) {
+      console.error("[market-data] Failed to generate dataset");
+      return NextResponse.json(
+        { error: "Failed to generate data" },
+        { status: 500 },
+      );
+    }
 
-    // GeoJSON data for map visualization
+    // Handle specific endpoints
     if (!regionId) {
+      console.log("[market-data] Generating GeoJSON data");
       let filteredDataset = [...datasetCache];
 
       // Apply geographic filtering if specified
       if (geoScope && geoId) {
+        console.log("[market-data] Applying geographic filtering:", {
+          geoScope,
+          geoId,
+        });
         // Filter the dataset based on geographic scope
         switch (geoScope) {
           case "state":
-            // Get state and neighboring states
             filteredDataset = filteredDataset.filter(
               (data) => data.regionType === "state",
             );
             break;
           case "county":
-            // Get county and neighboring counties
             filteredDataset = filteredDataset.filter(
               (data) => data.regionType === "county",
             );
             break;
           case "city":
-            // For cities, show the city and other cities in the same county
             filteredDataset = filteredDataset.filter(
               (data) => data.regionType === "city",
             );
             break;
           case "zipcode":
-            // For zipcodes, show the zipcode and neighboring zipcodes
             filteredDataset = filteredDataset.filter(
               (data) => data.regionType === "zip",
             );
             break;
           default:
-            // By default show all regions (country level)
             break;
         }
       }
@@ -104,15 +123,24 @@ export async function GET(request: NextRequest) {
         date,
       );
 
+      console.log(
+        "[market-data] Generated GeoJSON with features:",
+        geoJsonData.features.length,
+      );
       return NextResponse.json(geoJsonData);
     }
 
     // Single region data
+    console.log("[market-data] Fetching single region data:", {
+      regionId,
+      date,
+    });
     const regionData = datasetCache.find(
       (d) => d.regionId === regionId && d.timestamp === date,
     );
 
     if (!regionData) {
+      console.error("[market-data] Region data not found:", { regionId, date });
       return NextResponse.json(
         { error: "Region data not found" },
         { status: 404 },
@@ -126,7 +154,7 @@ export async function GET(request: NextRequest) {
       metrics: regionData.metrics,
     });
   } catch (error) {
-    console.error("API error:", error);
+    console.error("[market-data] Error processing request:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 },
