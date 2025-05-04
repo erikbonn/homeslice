@@ -35,15 +35,15 @@ export function SearchInput({
 
   return (
     <form onSubmit={handleSearch} className="relative mx-auto w-full max-w-2xl">
-      <div className="relative">
-        <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-orange-200" />
+      <div className="group relative">
+        <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-orange-200 transition-colors group-hover:text-orange-100" />
         <input
           type="text"
           placeholder="Enter a city, state, county, or zip-code"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className={cn(
-            "w-full rounded-full border border-orange-200/20 bg-white/10 px-10 py-3 text-sm text-white placeholder:text-orange-200/50 focus:border-orange-200/40 focus:ring-2 focus:ring-orange-200/20 focus:outline-none",
+            "w-full rounded-full border-2 border-orange-200/20 bg-white/10 px-12 py-4 text-base text-white transition-all placeholder:text-orange-200/50 hover:border-orange-200/30 hover:bg-white/20 focus:border-orange-200/40 focus:outline-none focus:ring-2 focus:ring-orange-200/20",
             className,
           )}
           {...props}
